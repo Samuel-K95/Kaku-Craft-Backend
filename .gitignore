@@ -1,5 +1,11 @@
 __pycache__/
 venv/
+.venv/
+.venv312/
+.venvrun/
+.pytest_cache/
+media/
+staticfiles/
 
 sqlite3.db
 db.sqlite3
@@ -11,4 +17,5 @@ db.sqlite3
 .env
 *.pyc
 coverage/html
-coverage/  
+coverage/
+*.egg-info/
