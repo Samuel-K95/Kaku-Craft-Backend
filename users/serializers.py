@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -8,26 +9,69 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "role", "date_joined", "telegram_id"]
-        read_only_fields = fields
+        fields = ["id", "email", "full_name", "role", "profile_picture", "date_joined"]
+        read_only_fields = ["id", "role", "date_joined"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.ChoiceField(choices=User.Role.choices, required=False, default=User.Role.CUSTOMER)
 
     class Meta:
         model = User
-        fields = ["id", "email", "password", "first_name", "last_name", "role", "telegram_id"]
+        fields = ["id", "email", "full_name", "password", "role"]
         read_only_fields = ["id"]
 
     def validate_role(self, value):
-        if value == User.Role.ADMIN:
-            raise serializers.ValidationError("Cannot self-register as admin.")
+        request = self.context.get("request")
+
+        if not request or not request.user.is_authenticated:
+            if value != User.Role.CUSTOMER:
+                raise serializers.ValidationError("Only customer signup is allowed.")
+            return value
+
+        if request.user.role == User.Role.SUPER_ADMIN:
+            return value
+
+        if request.user.role == User.Role.ADMIN and value == User.Role.CUSTOMER:
+            return value
+
+        raise serializers.ValidationError("You do not have permission to create this role.")
+
+    def validate_password(self, value):
+        validate_password(value)
         return value
 
     def create(self, validated_data):
         password = validated_data.pop("password")
         user = User.objects.create_user(password=password, **validated_data)
+        return user
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["email", "full_name", "profile_picture"]
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        validate_password(value, self.context["request"].user)
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save(update_fields=["password"])
         return user
 
 

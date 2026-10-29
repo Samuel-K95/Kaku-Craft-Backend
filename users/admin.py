@@ -8,11 +8,11 @@ from .models import User
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
 	ordering = ("email",)
-	list_display = ("email", "first_name", "last_name", "role", "is_staff", "is_active")
+	list_display = ("email", "full_name", "role", "is_staff", "is_active")
 	list_filter = ("role", "is_staff", "is_active")
 	fieldsets = (
 		(None, {"fields": ("email", "password")}),
-		(_("Personal info"), {"fields": ("first_name", "last_name", "role")}),
+		(_("Personal info"), {"fields": ("full_name", "profile_picture", "role")}),
 		(_("Permissions"), {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
 		(_("Important dates"), {"fields": ("last_login", "date_joined")}),
 	)
@@ -21,8 +21,8 @@ class UserAdmin(BaseUserAdmin):
 			None,
 			{
 				"classes": ("wide",),
-				"fields": ("email", "password1", "password2", "role", "is_staff", "is_active"),
+				"fields": ("email", "full_name", "password1", "password2", "role", "is_staff", "is_active"),
 			},
 		),
 	)
-	search_fields = ("email", "first_name", "last_name")
+	search_fields = ("email", "full_name")

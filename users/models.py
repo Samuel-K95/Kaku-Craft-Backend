@@ -12,6 +12,9 @@ class UserManager(BaseUserManager):
 		extra_fields.setdefault("is_active", True)
 		role = role or User.Role.CUSTOMER
 
+		if role in [User.Role.ADMIN, User.Role.SUPER_ADMIN]:
+			extra_fields.setdefault("is_staff", True)
+
 		user = self.model(email=email, role=role, **extra_fields)
 		user.set_password(password)
 		user.save(using=self._db)
@@ -26,27 +29,27 @@ class UserManager(BaseUserManager):
 		if extra_fields.get("is_superuser") is not True:
 			raise ValueError("Superuser must have is_superuser=True.")
 
-		return self.create_user(email, password, role=User.Role.ADMIN, **extra_fields)
+		return self.create_user(email, password, role=User.Role.SUPER_ADMIN, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
 	class Role(models.TextChoices):
 		CUSTOMER = "customer", "Customer"
 		ADMIN = "admin", "Admin"
+		SUPER_ADMIN = "super_admin", "Super Admin"
 
 	email = models.EmailField(unique=True)
-	first_name = models.CharField(max_length=150, blank=True)
-	last_name = models.CharField(max_length=150, blank=True)
+	full_name = models.CharField(max_length=255)
+	profile_picture = models.ImageField(upload_to="profile_pictures/", blank=True, null=True)
 	role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
 	is_active = models.BooleanField(default=True)
 	is_staff = models.BooleanField(default=False)
-	telegram_id = models.CharField(max_length=100, blank=True, null=True)
 	date_joined = models.DateTimeField(auto_now_add=True)
 
 	objects = UserManager()
 
 	USERNAME_FIELD = "email"
-	REQUIRED_FIELDS = []
+	REQUIRED_FIELDS = ["full_name"]
 
 	def __str__(self):
 		return self.email
