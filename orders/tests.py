@@ -152,3 +152,45 @@ def test_admin_cannot_skip_deposit_for_in_progress(api_client, customer, admin_u
 		format="json",
 	)
 	assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_customer_can_upload_remaining_payment_proof_in_verified_or_progress(
+	api_client, customer, admin_user, product
+):
+	buyer = _auth(api_client, customer)
+	buyer.post(
+		reverse("orders:cart-add"),
+		{"product_id": product.id, "quantity": 1},
+		format="json",
+	)
+	created = buyer.post(reverse("orders:order-list"), {}, format="json")
+	order_id = created.data["id"]
+
+	# Upload and approve deposit
+	upload = buyer.post(
+		reverse("orders:order-payment-proof-upload", kwargs={"order_id": order_id}),
+		{"image": _image_upload("deposit.png"), "amount": "50.00", "kind": "deposit"},
+		format="multipart",
+	)
+	assert upload.status_code == status.HTTP_201_CREATED
+	proof_id = upload.data["id"]
+
+	admin = APIClient()
+	admin.force_authenticate(user=admin_user)
+	admin.post(
+		reverse("orders:order-payment-proof-review", kwargs={"proof_id": proof_id}),
+		{"approve": True},
+		format="json",
+	)
+
+	order = Order.objects.get(pk=order_id)
+	assert order.status == Order.Status.IN_PROGRESS
+
+	# Customer attempts to upload remaining 50% proof while order is IN_PROGRESS
+	remaining_upload = buyer.post(
+		reverse("orders:order-payment-proof-upload", kwargs={"order_id": order_id}),
+		{"image": _image_upload("remaining.png"), "amount": "50.00", "kind": "remaining"},
+		format="multipart",
+	)
+	assert remaining_upload.status_code == status.HTTP_201_CREATED

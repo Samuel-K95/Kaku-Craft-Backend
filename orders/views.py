@@ -145,6 +145,8 @@ class OrderPaymentProofUploadView(APIView):
 		if order.status not in {
 			Order.Status.PENDING_PAYMENT,
 			Order.Status.PAYMENT_SUBMITTED,
+			Order.Status.PAYMENT_VERIFIED,
+			Order.Status.IN_PROGRESS,
 			Order.Status.DELIVERED,
 		}:
 			raise ValidationError(
