@@ -82,8 +82,13 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 		search = self.request.query_params.get("search")
 		if search:
+			search_term = search.strip()
 			queryset = queryset.filter(
-				Q(name__icontains=search) | Q(description__icontains=search)
+				Q(name__icontains=search_term)
+				| Q(description__icontains=search_term)
+				| Q(category__name__icontains=search_term)
+				| Q(category__slug__icontains=search_term)
+				| Q(size__icontains=search_term)
 			).distinct()
 
 		ordering = self.request.query_params.get("ordering")
