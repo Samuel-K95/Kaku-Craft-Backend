@@ -75,22 +75,42 @@ def create_notification(user, event, **kwargs):
 
 
 def dispatch_event(event, **kwargs):
-	"""Create in-app notification and enqueue Telegram delivery."""
+	"""Create in-app notification and enqueue Telegram & Email delivery."""
 	user = kwargs.pop("user", None)
 	notification = create_notification(user, event, **kwargs) if user else None
 
+	user_id = getattr(user, "id", None)
+	title = getattr(notification, "title", event)
+	body = getattr(notification, "body", "")
+	payload = _payload_from_kwargs(**kwargs)
+
+	# 1. Dispatch Telegram Push
 	try:
 		from .tasks import send_telegram_notification
 
 		send_telegram_notification.delay(
-			user_id=getattr(user, "id", None),
+			user_id=user_id,
 			event=event,
-			title=getattr(notification, "title", event),
-			body=getattr(notification, "body", ""),
-			payload=_payload_from_kwargs(**kwargs),
+			title=title,
+			body=body,
+			payload=payload,
 		)
 	except Exception as exc:
 		logger.debug("Telegram dispatch skipped: %s", exc)
+
+	# 2. Dispatch Transactional Email
+	try:
+		from .tasks import send_email_notification
+
+		send_email_notification.delay(
+			user_id=user_id,
+			event=event,
+			title=title,
+			body=body,
+			payload=payload,
+		)
+	except Exception as exc:
+		logger.debug("Email dispatch skipped: %s", exc)
 
 	return notification
 
