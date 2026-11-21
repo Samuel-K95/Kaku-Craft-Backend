@@ -14,6 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 _env_path = BASE_DIR / ".env"
 if _env_path.exists():
 	try:
+		# pyrefly: ignore[missing-import]
 		from dotenv import load_dotenv
 
 		load_dotenv(_env_path)
@@ -54,7 +55,9 @@ INSTALLED_APPS += [
 	"django.contrib.contenttypes",
 	"django.contrib.sessions",
 	"django.contrib.messages",
+	"cloudinary_storage",
 	"django.contrib.staticfiles",
+	"cloudinary",
 	"rest_framework",
 	"corsheaders",
 	"drf_spectacular",
@@ -179,6 +182,38 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "")
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+	CLOUDINARY_STORAGE = {
+		"CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+		"API_KEY": CLOUDINARY_API_KEY,
+		"API_SECRET": CLOUDINARY_API_SECRET,
+	}
+	DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+	STORAGES = {
+		"default": {
+			"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+		},
+		"staticfiles": {
+			"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+		},
+	}
+elif CLOUDINARY_URL:
+	DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+	STORAGES = {
+		"default": {
+			"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+		},
+		"staticfiles": {
+			"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+		},
+	}
+
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DJANGO_UPLOAD_MAX_MEMORY", str(5 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
