@@ -12,7 +12,7 @@ class UserManager(BaseUserManager):
 		extra_fields.setdefault("is_active", True)
 		role = role or User.Role.CUSTOMER
 
-		if role in [User.Role.ADMIN, User.Role.SUPER_ADMIN]:
+		if role in [User.Role.ADMIN, User.Role.SUPER_ADMIN, User.Role.SYSTEM_ADMIN]:
 			extra_fields.setdefault("is_staff", True)
 
 		user = self.model(email=email, role=role, **extra_fields)
@@ -34,9 +34,12 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
 	class Role(models.TextChoices):
+		USER = "user", "User"
 		CUSTOMER = "customer", "Customer"
+		EXPERT = "expert", "Expert"
 		ADMIN = "admin", "Admin"
 		SUPER_ADMIN = "super_admin", "Super Admin"
+		SYSTEM_ADMIN = "system_admin", "System Admin"
 
 	email = models.EmailField(unique=True)
 	full_name = models.CharField(max_length=255)
@@ -44,6 +47,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 	role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
 	is_active = models.BooleanField(default=True)
 	is_staff = models.BooleanField(default=False)
+	can_impersonate = models.BooleanField(default=False, help_text="Allows this user to sign in as any other user.")
 	date_joined = models.DateTimeField(auto_now_add=True)
 
 	objects = UserManager()
