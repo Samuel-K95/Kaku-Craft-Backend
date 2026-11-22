@@ -86,12 +86,27 @@ MIDDLEWARE = [
 	"django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# Staging/dev default: allow any frontend origin until the host is finalized.
 CORS_ALLOW_ALL_ORIGINS = os.getenv("DJANGO_CORS_ALLOW_ALL_ORIGINS", "true").lower() == "true"
+CORS_ALLOW_CREDENTIALS = os.getenv("DJANGO_CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
 CORS_ALLOWED_ORIGINS = [
 	origin.strip()
 	for origin in os.getenv("DJANGO_CORS_ALLOWED_ORIGINS", "").split(",")
 	if origin.strip()
 ]
+CORS_ALLOW_HEADERS = list(
+	{
+		"accept",
+		"accept-encoding",
+		"authorization",
+		"content-type",
+		"dnt",
+		"origin",
+		"user-agent",
+		"x-csrftoken",
+		"x-requested-with",
+	}
+)
 
 if CORS_ALLOW_ALL_ORIGINS:
 	CORS_ALLOWED_ORIGINS = []
