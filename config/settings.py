@@ -77,6 +77,7 @@ if CHANNELS_AVAILABLE:
 MIDDLEWARE = [
 	"corsheaders.middleware.CorsMiddleware",
 	"django.middleware.security.SecurityMiddleware",
+	"whitenoise.middleware.WhiteNoiseMiddleware",
 	"django.contrib.sessions.middleware.SessionMiddleware",
 	"django.middleware.common.CommonMiddleware",
 	"django.middleware.csrf.CsrfViewMiddleware",
@@ -179,7 +180,25 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+	"default": {
+		"BACKEND": "django.core.files.storage.FileSystemStorage",
+	},
+		"staticfiles": {
+			"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+		},
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Render / reverse-proxy HTTPS awareness (safe even when DEBUG=true on staging)
+if os.getenv("RENDER", "").lower() == "true" or os.getenv("DJANGO_BEHIND_PROXY", "").lower() == "true":
+	SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+CSRF_TRUSTED_ORIGINS = [
+	origin.strip()
+	for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+	if origin.strip()
+]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -196,23 +215,13 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
 		"API_SECRET": CLOUDINARY_API_SECRET,
 	}
 	DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-	STORAGES = {
-		"default": {
-			"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-		},
-		"staticfiles": {
-			"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-		},
+	STORAGES["default"] = {
+		"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
 	}
 elif CLOUDINARY_URL:
 	DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-	STORAGES = {
-		"default": {
-			"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-		},
-		"staticfiles": {
-			"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-		},
+	STORAGES["default"] = {
+		"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
 	}
 
 
