@@ -47,6 +47,8 @@ def product_data(db):
 		description="Soft toy bear",
 		price="10.00",
 		size="S",
+		stock_quantity=5,
+		production_days=7,
 		sold_count=2,
 		social_links={"instagram": "https://instagram.com/kaku_bear"},
 	)
@@ -56,6 +58,8 @@ def product_data(db):
 		description="Customizable doll",
 		price="20.00",
 		size="M",
+		stock_quantity=3,
+		production_days=10,
 		sold_count=8,
 		social_links={"tiktok": "https://tiktok.com/@kaku_doll"},
 	)
@@ -65,6 +69,7 @@ def product_data(db):
 		description="Should not be public",
 		price="5.00",
 		size="XS",
+		stock_quantity=0,
 		status=Product.ProductStatus.DRAFT,
 		is_active=False,
 	)

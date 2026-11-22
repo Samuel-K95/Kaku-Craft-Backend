@@ -40,7 +40,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-	queryset = Product.objects.select_related("category").prefetch_related("images")
+	queryset = Product.objects.select_related("category").prefetch_related(
+		"images", "size_variants"
+	)
 	lookup_field = "slug"
 
 	def get_permissions(self):
@@ -54,10 +56,19 @@ class ProductViewSet(viewsets.ModelViewSet):
 		return ProductSerializer
 
 	def get_queryset(self):
-		queryset = Product.objects.select_related("category").prefetch_related("images")
+		queryset = Product.objects.select_related("category").prefetch_related(
+			"images", "size_variants"
+		)
 
 		if self.action in ["list", "retrieve"]:
-			queryset = queryset.filter(is_active=True, status=Product.ProductStatus.ACTIVE)
+			# Include out_of_stock so pre-order items remain shoppable.
+			queryset = queryset.filter(
+				is_active=True,
+				status__in=[
+					Product.ProductStatus.ACTIVE,
+					Product.ProductStatus.OUT_OF_STOCK,
+				],
+			)
 
 		category = self.request.query_params.get("category")
 		if category:

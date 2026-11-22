@@ -69,10 +69,9 @@ class ReviewListCreateView(generics.ListCreateAPIView):
 				qs = qs.filter(product__slug=product)
 
 		user = self.request.user
-		if getattr(user, "is_authenticated", False) and getattr(user, "role", None) in {
-			"admin",
-			"super_admin",
-		}:
+		from products.permissions import ADMIN_ROLES
+
+		if getattr(user, "is_authenticated", False) and getattr(user, "role", None) in ADMIN_ROLES:
 			return qs
 		return qs.filter(is_approved=True)
 

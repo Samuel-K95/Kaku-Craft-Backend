@@ -66,7 +66,7 @@ def add_to_cart(user, product_id, quantity=1):
 
 
 @transaction.atomic
-def create_order_from_cart(user, *, shipping_address="", notes=""):
+def create_order_from_cart(user, *, shipping_address="", notes="", discount_code=""):
 	cart = get_or_create_cart(user)
 	items = list(cart.items.select_related("product"))
 	if not items:
@@ -79,29 +79,48 @@ def create_order_from_cart(user, *, shipping_address="", notes=""):
 				{"cart": f"Product '{product.name}' is no longer available."}
 			)
 
-	total = sum((item.subtotal for item in items), Decimal("0.00"))
+	discount = None
+	if discount_code:
+		from discounts.services import compute_line_discount, get_active_discount
+
+		discount = get_active_discount(discount_code)
+
+	order_items = []
+	total = Decimal("0.00")
+	for item in items:
+		unit = item.product.price
+		if discount:
+			unit = (unit - compute_line_discount(discount, unit, item.product_id)).quantize(
+				Decimal("0.01")
+			)
+		line_total = (unit * item.quantity).quantize(Decimal("0.01"))
+		total += line_total
+		order_items.append(
+			OrderItem(
+				order=None,  # set after create
+				product=item.product,
+				product_name=item.product.name,
+				unit_price=unit,
+				quantity=item.quantity,
+				line_total=line_total,
+			)
+		)
+
+	note_bits = [notes or ""]
+	if discount:
+		note_bits.append(f"Discount applied: {discount.code}")
 	order = Order.objects.create(
 		user=user,
 		total_price=total,
 		amount_paid=Decimal("0.00"),
 		shipping_address=shipping_address or "",
-		notes=notes or "",
+		notes="\n".join(b for b in note_bits if b).strip(),
 		status=Order.Status.PENDING_PAYMENT,
 	)
 
-	OrderItem.objects.bulk_create(
-		[
-			OrderItem(
-				order=order,
-				product=item.product,
-				product_name=item.product.name,
-				unit_price=item.product.price,
-				quantity=item.quantity,
-				line_total=item.subtotal,
-			)
-			for item in items
-		]
-	)
+	for oi in order_items:
+		oi.order = order
+	OrderItem.objects.bulk_create(order_items)
 	cart.items.all().delete()
 	return order
 
@@ -173,6 +192,16 @@ def mark_order_delivered(order):
 	return order
 
 
+def _bump_sold_counts(order):
+	from django.db.models import F
+
+	for item in order.items.select_related("product"):
+		if item.product_id:
+			Product.objects.filter(pk=item.product_id).update(
+				sold_count=F("sold_count") + item.quantity
+			)
+
+
 @transaction.atomic
 def complete_order_if_paid(order):
 	if order.status != Order.Status.DELIVERED:
@@ -184,6 +213,7 @@ def complete_order_if_paid(order):
 	assert_order_transition(order, Order.Status.COMPLETED)
 	order.status = Order.Status.COMPLETED
 	order.save(update_fields=["status", "updated_at"])
+	_bump_sold_counts(order)
 	return order
 
 

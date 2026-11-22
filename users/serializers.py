@@ -13,6 +13,45 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "role", "date_joined"]
 
 
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "full_name",
+            "role",
+            "profile_picture",
+            "is_active",
+            "date_joined",
+        ]
+        read_only_fields = ["id", "email", "full_name", "profile_picture", "date_joined"]
+
+    def validate_role(self, value):
+        request = self.context.get("request")
+        if not request:
+            return value
+        # Prevent demoting yourself out of admin access.
+        if self.instance and self.instance.pk == request.user.pk:
+            if value not in {
+                User.Role.ADMIN,
+                User.Role.SUPER_ADMIN,
+                User.Role.SYSTEM_ADMIN,
+            }:
+                raise serializers.ValidationError("You cannot remove your own admin access.")
+        return value
+
+    def update(self, instance, validated_data):
+        role = validated_data.get("role", instance.role)
+        if role in {User.Role.ADMIN, User.Role.SUPER_ADMIN, User.Role.SYSTEM_ADMIN}:
+            instance.is_staff = True
+        elif role == User.Role.EXPERT:
+            instance.is_staff = False
+        else:
+            instance.is_staff = False
+        return super().update(instance, validated_data)
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     role = serializers.ChoiceField(choices=User.Role.choices, required=False, default=User.Role.CUSTOMER)

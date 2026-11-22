@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -39,10 +40,12 @@ def test_notification_list_and_telegram_link(api_client, customer):
 	assert link.data["link_token"]
 
 	token = ensure_telegram_link(customer).link_token
-	webhook = APIClient().post(
-		reverse("notifications:telegram-webhook"),
-		{"message": {"text": f"/start {token}", "chat": {"id": 12345}}},
-		format="json",
-	)
+	with override_settings(TELEGRAM_WEBHOOK_SECRET="test-webhook-secret"):
+		webhook = APIClient().post(
+			reverse("notifications:telegram-webhook"),
+			{"message": {"text": f"/start {token}", "chat": {"id": 12345}}},
+			format="json",
+			HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN="test-webhook-secret",
+		)
 	assert webhook.status_code == status.HTTP_200_OK
 	assert webhook.data["ok"] is True

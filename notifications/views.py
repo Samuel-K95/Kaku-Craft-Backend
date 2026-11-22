@@ -54,6 +54,26 @@ class TelegramWebhookView(APIView):
 	authentication_classes = []
 
 	def post(self, request):
+		from django.conf import settings as dj_settings
+
+		secret = getattr(dj_settings, "TELEGRAM_WEBHOOK_SECRET", "") or ""
+		provided = (
+			request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+			or request.META.get("HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN")
+			or ""
+		)
+		if secret:
+			if provided != secret:
+				return Response(
+					{"ok": False, "detail": "invalid webhook secret"},
+					status=status.HTTP_403_FORBIDDEN,
+				)
+		elif not getattr(dj_settings, "DEBUG", False):
+			return Response(
+				{"ok": False, "detail": "webhook secret not configured"},
+				status=status.HTTP_503_SERVICE_UNAVAILABLE,
+			)
+
 		message = request.data.get("message") or {}
 		chat = message.get("chat") or {}
 		text = (message.get("text") or "").strip()

@@ -77,6 +77,16 @@ class Order(models.Model):
 	)
 	notes = models.TextField(blank=True)
 	shipping_address = models.TextField(blank=True)
+	assigned_expert = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="assigned_orders",
+	)
+	estimated_completion_days = models.PositiveIntegerField(null=True, blank=True)
+	expert_started_at = models.DateTimeField(null=True, blank=True)
+	expert_completed_at = models.DateTimeField(null=True, blank=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 
@@ -107,6 +117,17 @@ class Order(models.Model):
 	@property
 	def is_fully_paid(self):
 		return self.amount_paid >= self.total_price
+
+	@property
+	def production_status(self):
+		if self.expert_completed_at or self.status in {
+			self.Status.DELIVERED,
+			self.Status.COMPLETED,
+		}:
+			return "completed"
+		if self.expert_started_at or self.status == self.Status.IN_PROGRESS:
+			return "in_progress"
+		return "not_started"
 
 
 class OrderItem(models.Model):

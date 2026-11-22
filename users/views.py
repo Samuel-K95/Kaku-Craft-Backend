@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
@@ -6,7 +7,9 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from products.permissions import IsAdminOrSuperAdmin
 from users.serializers import (  # type: ignore
+	AdminUserSerializer,
 	ChangePasswordSerializer,
 	CustomTokenObtainPairSerializer,
 	ProfileUpdateSerializer,
@@ -52,6 +55,28 @@ class ChangePasswordView(generics.GenericAPIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
 	serializer_class = CustomTokenObtainPairSerializer
+
+
+class AdminUserListView(generics.ListAPIView):
+	serializer_class = AdminUserSerializer
+	permission_classes = [permissions.IsAuthenticated, IsAdminOrSuperAdmin]
+
+	def get_queryset(self):
+		qs = User.objects.all().order_by("-date_joined")
+		role = self.request.query_params.get("role")
+		search = self.request.query_params.get("search")
+		if role:
+			qs = qs.filter(role=role)
+		if search:
+			qs = qs.filter(Q(email__icontains=search) | Q(full_name__icontains=search))
+		return qs
+
+
+class AdminUserDetailView(generics.RetrieveUpdateAPIView):
+	serializer_class = AdminUserSerializer
+	permission_classes = [permissions.IsAuthenticated, IsAdminOrSuperAdmin]
+	queryset = User.objects.all()
+	http_method_names = ["get", "patch", "head", "options"]
 
 
 class ImpersonateView(APIView):

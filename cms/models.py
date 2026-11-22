@@ -8,6 +8,8 @@ class SiteContent(models.Model):
 		ABOUT = "about", "About"
 		CONTACT = "contact", "Contact"
 		BANNER = "banner", "Promotional Banner"
+		SPECIAL_OCCASION = "special_occasion", "Special Occasion"
+		NEW_ARRIVALS = "new_arrivals", "New Arrivals"
 		FOOTER = "footer", "Footer"
 		SOCIAL = "social", "Social Links"
 		FAQ = "faq", "FAQ"

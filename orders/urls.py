@@ -8,6 +8,7 @@ urlpatterns = [
 	path("cart/", views.CartDetailView.as_view(), name="cart-detail"),
 	path("cart/items/", views.CartAddItemView.as_view(), name="cart-add"),
 	path("cart/items/<int:item_id>/", views.CartItemDetailView.as_view(), name="cart-item"),
+	path("expert/jobs/", views.ExpertJobListView.as_view(), name="expert-jobs"),
 	path("", views.OrderListCreateView.as_view(), name="order-list"),
 	path("<int:pk>/", views.OrderDetailView.as_view(), name="order-detail"),
 	path(
@@ -24,6 +25,21 @@ urlpatterns = [
 		"<int:order_id>/status/",
 		views.AdminOrderStatusUpdateView.as_view(),
 		name="order-status",
+	),
+	path(
+		"<int:order_id>/assign-expert/",
+		views.AssignExpertView.as_view(),
+		name="assign-expert",
+	),
+	path(
+		"<int:order_id>/expert/start/",
+		views.ExpertStartView.as_view(),
+		name="expert-start",
+	),
+	path(
+		"<int:order_id>/expert/complete/",
+		views.ExpertCompleteView.as_view(),
+		name="expert-complete",
 	),
 	path("custom/", views.CustomOrderListCreateView.as_view(), name="custom-order-list"),
 	path("custom/<int:pk>/", views.CustomOrderDetailView.as_view(), name="custom-order-detail"),

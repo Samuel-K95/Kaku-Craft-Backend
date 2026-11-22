@@ -64,6 +64,9 @@ class Product(models.Model):
 	description = models.TextField()
 	price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
 	size = models.CharField(max_length=80, blank=True)
+	stock_quantity = models.PositiveIntegerField(default=0)
+	production_days = models.PositiveIntegerField(default=14)
+	source_key = models.CharField(max_length=120, unique=True, null=True, blank=True)
 	status = models.CharField(max_length=20, choices=ProductStatus.choices, default=ProductStatus.ACTIVE)
 	is_active = models.BooleanField(default=True)
 	sold_count = models.PositiveIntegerField(default=0)
@@ -80,13 +83,43 @@ class Product(models.Model):
 			models.Index(fields=["sold_count"]),
 		]
 
+	def sync_stock_status(self):
+		"""Keep status in sync with total stock when not draft/archived."""
+		if self.status in (self.ProductStatus.DRAFT, self.ProductStatus.ARCHIVED):
+			return
+		self.status = (
+			self.ProductStatus.ACTIVE
+			if self.stock_quantity > 0
+			else self.ProductStatus.OUT_OF_STOCK
+		)
+
 	def save(self, *args, **kwargs):
 		if not self.slug:
 			self.slug = build_unique_slug(Product, self.name, self.pk)
+		self.sync_stock_status()
 		super().save(*args, **kwargs)
 
 	def __str__(self):
 		return self.name
+
+
+class ProductSizeVariant(models.Model):
+	class Size(models.TextChoices):
+		MEDIUM = "Medium", "Medium"
+		LARGE = "Large", "Large"
+		XL = "XL", "XL"
+		XXL = "XXL", "XXL"
+
+	product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="size_variants")
+	size = models.CharField(max_length=16, choices=Size.choices)
+	stock_quantity = models.PositiveIntegerField(default=0)
+
+	class Meta:
+		ordering = ["id"]
+		unique_together = [("product", "size")]
+
+	def __str__(self):
+		return f"{self.product.name} — {self.size}"
 
 
 class ProductImage(models.Model):

@@ -125,6 +125,10 @@ class OrderSerializer(serializers.ModelSerializer):
 	deposit_required = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 	has_minimum_deposit = serializers.BooleanField(read_only=True)
 	is_fully_paid = serializers.BooleanField(read_only=True)
+	production_status = serializers.CharField(read_only=True)
+	assigned_expert_name = serializers.CharField(
+		source="assigned_expert.full_name", read_only=True, allow_null=True
+	)
 
 	class Meta:
 		model = Order
@@ -141,6 +145,12 @@ class OrderSerializer(serializers.ModelSerializer):
 			"notes",
 			"items",
 			"payment_proofs",
+			"assigned_expert",
+			"assigned_expert_name",
+			"estimated_completion_days",
+			"expert_started_at",
+			"expert_completed_at",
+			"production_status",
 			"created_at",
 			"updated_at",
 		]
@@ -149,20 +159,32 @@ class OrderSerializer(serializers.ModelSerializer):
 			"status",
 			"total_price",
 			"amount_paid",
+			"assigned_expert_name",
+			"production_status",
 			"created_at",
 			"updated_at",
 		]
 
 
+class AssignExpertSerializer(serializers.Serializer):
+	expert_id = serializers.IntegerField()
+
+
+class ExpertStartSerializer(serializers.Serializer):
+	days = serializers.IntegerField(min_value=1, max_value=365)
+
+
 class CreateOrderSerializer(serializers.Serializer):
 	shipping_address = serializers.CharField(required=False, allow_blank=True, default="")
 	notes = serializers.CharField(required=False, allow_blank=True, default="")
+	discount_code = serializers.CharField(required=False, allow_blank=True, default="")
 
 	def create(self, validated_data):
 		return create_order_from_cart(
 			self.context["request"].user,
 			shipping_address=validated_data.get("shipping_address", ""),
 			notes=validated_data.get("notes", ""),
+			discount_code=validated_data.get("discount_code", ""),
 		)
 
 

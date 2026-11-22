@@ -73,7 +73,7 @@ try:
 	send_email_notification.run = send_email_notification  # type: ignore[attr-defined]
 
 except Exception:  # Celery not installed — sync fallback
-	class _SyncTask:
+	class _SyncTelegramTask:
 		@staticmethod
 		def delay(**kwargs):
 			return _run_send(**kwargs)
@@ -82,4 +82,14 @@ except Exception:  # Celery not installed — sync fallback
 		def __call__(**kwargs):
 			return _run_send(**kwargs)
 
-	send_telegram_notification = _SyncTask()
+	class _SyncEmailTask:
+		@staticmethod
+		def delay(**kwargs):
+			return _run_email_send(**kwargs)
+
+		@staticmethod
+		def __call__(**kwargs):
+			return _run_email_send(**kwargs)
+
+	send_telegram_notification = _SyncTelegramTask()
+	send_email_notification = _SyncEmailTask()

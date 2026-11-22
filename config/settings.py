@@ -68,6 +68,7 @@ INSTALLED_APPS += [
 	"messaging",
 	"notifications",
 	"cms",
+	"discounts",
 ]
 
 if CHANNELS_AVAILABLE:
@@ -247,6 +248,7 @@ CELERY_RESULT_SERIALIZER = "json"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
 # Email Configuration (SMTP / Gmail)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")

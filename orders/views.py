@@ -2,13 +2,16 @@ from decimal import Decimal
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from products.permissions import IsAdminOrSuperAdmin
+from django.contrib.auth import get_user_model
+
+from products.permissions import ADMIN_ROLES, IsAdminOrSuperAdmin, IsExpertOrAdmin
 
 from .models import (
 	CartItem,
@@ -20,6 +23,7 @@ from .models import (
 from .serializers import (
 	AddToCartSerializer,
 	AdminOrderStatusSerializer,
+	AssignExpertSerializer,
 	CartItemSerializer,
 	CartSerializer,
 	CreateOrderSerializer,
@@ -28,12 +32,15 @@ from .serializers import (
 	CustomOrderPaymentProofCreateSerializer,
 	CustomOrderQuoteSerializer,
 	CustomOrderSerializer,
+	ExpertStartSerializer,
 	OrderSerializer,
 	PaymentProofCreateSerializer,
 	PaymentProofReviewSerializer,
 	PaymentProofSerializer,
 	UpdateCartItemSerializer,
 )
+
+User = get_user_model()
 from .services import (
 	apply_payment_proof_decision,
 	assert_order_transition,
@@ -54,12 +61,14 @@ def _notify_safe(event, **payload):
 
 
 class CartDetailView(APIView):
+	@extend_schema(responses=CartSerializer)
 	def get(self, request):
 		cart = get_or_create_cart(request.user)
 		return Response(CartSerializer(cart).data)
 
 
 class CartAddItemView(APIView):
+	@extend_schema(request=AddToCartSerializer, responses=CartSerializer)
 	def post(self, request):
 		serializer = AddToCartSerializer(data=request.data, context={"request": request})
 		serializer.is_valid(raise_exception=True)
@@ -75,6 +84,7 @@ class CartAddItemView(APIView):
 
 
 class CartItemDetailView(APIView):
+	@extend_schema(request=UpdateCartItemSerializer, responses=CartSerializer)
 	def patch(self, request, item_id):
 		cart = get_or_create_cart(request.user)
 		item = get_object_or_404(CartItem, pk=item_id, cart=cart)
@@ -89,6 +99,7 @@ class CartItemDetailView(APIView):
 			}
 		)
 
+	@extend_schema(responses=CartSerializer)
 	def delete(self, request, item_id):
 		cart = get_or_create_cart(request.user)
 		item = get_object_or_404(CartItem, pk=item_id, cart=cart)
@@ -105,7 +116,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
 	def get_queryset(self):
 		user = self.request.user
 		qs = Order.objects.prefetch_related("items", "payment_proofs")
-		if getattr(user, "role", None) in {"admin", "super_admin"}:
+		if getattr(user, "role", None) in ADMIN_ROLES:
 			status_filter = self.request.query_params.get("status")
 			if status_filter:
 				qs = qs.filter(status=status_filter)
@@ -126,9 +137,98 @@ class OrderDetailView(generics.RetrieveAPIView):
 	def get_queryset(self):
 		user = self.request.user
 		qs = Order.objects.prefetch_related("items", "payment_proofs")
-		if getattr(user, "role", None) in {"admin", "super_admin"}:
+		if getattr(user, "role", None) in ADMIN_ROLES:
 			return qs
+		if getattr(user, "role", None) == "expert":
+			return qs.filter(assigned_expert=user)
 		return qs.filter(user=user)
+
+
+class ExpertJobListView(generics.ListAPIView):
+	serializer_class = OrderSerializer
+	permission_classes = [IsExpertOrAdmin]
+
+	def get_queryset(self):
+		user = self.request.user
+		qs = Order.objects.prefetch_related("items", "payment_proofs").select_related(
+			"assigned_expert"
+		)
+		if getattr(user, "role", None) in ADMIN_ROLES:
+			expert_id = self.request.query_params.get("expert_id")
+			if expert_id:
+				qs = qs.filter(assigned_expert_id=expert_id)
+			return qs.exclude(assigned_expert__isnull=True)
+		return qs.filter(assigned_expert=user)
+
+
+class AssignExpertView(APIView):
+	permission_classes = [IsAdminOrSuperAdmin]
+
+	def post(self, request, order_id):
+		order = get_object_or_404(Order, pk=order_id)
+		serializer = AssignExpertSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		expert = get_object_or_404(User, pk=serializer.validated_data["expert_id"], role="expert")
+		order.assigned_expert = expert
+		order.save(update_fields=["assigned_expert", "updated_at"])
+		return Response(OrderSerializer(order).data)
+
+
+class ExpertStartView(APIView):
+	permission_classes = [IsExpertOrAdmin]
+
+	def post(self, request, order_id):
+		order = get_object_or_404(Order, pk=order_id)
+		user = request.user
+		if getattr(user, "role", None) == "expert" and order.assigned_expert_id != user.id:
+			raise PermissionDenied("This job is not assigned to you.")
+		serializer = ExpertStartSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		days = serializer.validated_data["days"]
+		order.estimated_completion_days = days
+		order.expert_started_at = timezone.now()
+		order.expert_completed_at = None
+		update_fields = [
+			"estimated_completion_days",
+			"expert_started_at",
+			"expert_completed_at",
+			"updated_at",
+		]
+		if order.status in {
+			Order.Status.PAYMENT_VERIFIED,
+			Order.Status.IN_PROGRESS,
+		} or order.has_minimum_deposit:
+			if order.status == Order.Status.PAYMENT_VERIFIED:
+				assert_order_transition(order, Order.Status.IN_PROGRESS)
+				order.status = Order.Status.IN_PROGRESS
+				update_fields.append("status")
+		order.save(update_fields=list(dict.fromkeys(update_fields)))
+		return Response(OrderSerializer(order).data)
+
+
+class ExpertCompleteView(APIView):
+	permission_classes = [IsExpertOrAdmin]
+
+	def post(self, request, order_id):
+		order = get_object_or_404(Order, pk=order_id)
+		user = request.user
+		if getattr(user, "role", None) == "expert" and order.assigned_expert_id != user.id:
+			raise PermissionDenied("This job is not assigned to you.")
+		if not order.expert_started_at:
+			raise ValidationError({"detail": "Start the job before completing it."})
+		order.expert_completed_at = timezone.now()
+		update_fields = ["expert_completed_at", "updated_at"]
+		if order.status == Order.Status.IN_PROGRESS:
+			assert_order_transition(order, Order.Status.DELIVERED)
+			order.status = Order.Status.DELIVERED
+			update_fields.append("status")
+			order.save(update_fields=list(dict.fromkeys(update_fields)))
+			if order.is_fully_paid:
+				complete_order_if_paid(order)
+		else:
+			order.save(update_fields=update_fields)
+		order.refresh_from_db()
+		return Response(OrderSerializer(order).data)
 
 
 class OrderPaymentProofUploadView(APIView):
